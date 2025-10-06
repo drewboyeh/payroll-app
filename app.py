@@ -1,0 +1,72 @@
+import streamlit as st
+import pandas as pd
+import io
+from datetime import datetime
+
+from local_payroll_analyzer import LocalPayrollAnalyzer
+
+
+st.set_page_config(page_title="Payroll Analyzer", page_icon="🧮", layout="wide")
+st.title("Jersey Mike’s Payroll Hours Proportion Analyzer")
+st.write("Upload the three data files, then run the analysis and download the CSV.")
+
+
+def read_pipe_txt(file):
+    df = pd.read_csv(file, sep="|", encoding="utf-8")
+    df.columns = df.columns.str.strip()
+    return df
+
+
+with st.sidebar:
+    st.header("Data Files")
+    uploaded_time = st.file_uploader("Employee_Time_Clock .txt", type=["txt"], key="time")
+    uploaded_employee = st.file_uploader("Employee.txt", type=["txt"], key="employee")
+    uploaded_store = st.file_uploader("Store.txt", type=["txt"], key="store")
+
+    use_custom_dates = st.checkbox("Specify custom date range", value=False)
+    start_date = None
+    end_date = None
+    if use_custom_dates:
+        start_date = st.date_input("Start date")
+        end_date = st.date_input("End date")
+
+    run = st.button("Run Analysis")
+
+
+results_container = st.container()
+
+if run:
+    if not (uploaded_time and uploaded_employee and uploaded_store):
+        st.error("Please upload all three files.")
+    else:
+        analyzer = LocalPayrollAnalyzer(data_folder_path=".")
+        try:
+            analyzer.employee_time_data = read_pipe_txt(uploaded_time)
+            analyzer.employee_data = read_pipe_txt(uploaded_employee)
+            analyzer.store_data = read_pipe_txt(uploaded_store)
+
+            sd = pd.to_datetime(start_date) if start_date else None
+            ed = pd.to_datetime(end_date) if end_date else None
+
+            results = analyzer.analyze_pay_period(sd, ed)
+            if results is None or len(results) == 0:
+                st.warning("No results for the selected period.")
+            else:
+                st.success("Analysis complete.")
+                with results_container:
+                    st.dataframe(results)
+
+                # Build CSV into buffer using analyzer's save_report which supports file-like
+                csv_buf = io.StringIO()
+                analyzer.save_report(results, filename=csv_buf)
+                csv_bytes = csv_buf.getvalue().encode("utf-8")
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_bytes,
+                    file_name="payroll_analysis.csv",
+                    mime="text/csv",
+                )
+        except Exception as e:
+            st.error(f"Error running analysis: {e}")
+
+
