@@ -12,19 +12,33 @@ st.write("Upload the three data files, then run the analysis and download the CS
 
 
 def read_pipe_txt(file):
-    # Try multiple encodings commonly used by Windows exports
+    # Read raw bytes once
+    try:
+        file.seek(0)
+    except Exception:
+        pass
+    raw = file.read()
     encodings = ["utf-8", "utf-8-sig", "cp1252", "latin1"]
     last_err = None
     for enc in encodings:
         try:
-            file.seek(0)
-            df = pd.read_csv(file, sep="|", encoding=enc, engine="python", on_bad_lines="skip")
+            text = raw.decode(enc)
+            buf = io.StringIO(text)
+            df = pd.read_csv(buf, sep="|", engine="python", on_bad_lines="skip")
             df.columns = df.columns.str.strip()
             return df
         except Exception as e:
             last_err = e
             continue
-    raise last_err
+    # Final fallback: decode with cp1252 ignoring errors
+    try:
+        text = raw.decode("cp1252", errors="ignore")
+        buf = io.StringIO(text)
+        df = pd.read_csv(buf, sep="|", engine="python", on_bad_lines="skip")
+        df.columns = df.columns.str.strip()
+        return df
+    except Exception:
+        raise last_err
 
 
 with st.sidebar:
