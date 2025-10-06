@@ -12,9 +12,19 @@ st.write("Upload the three data files, then run the analysis and download the CS
 
 
 def read_pipe_txt(file):
-    df = pd.read_csv(file, sep="|", encoding="utf-8")
-    df.columns = df.columns.str.strip()
-    return df
+    # Try multiple encodings commonly used by Windows exports
+    encodings = ["utf-8", "utf-8-sig", "cp1252", "latin1"]
+    last_err = None
+    for enc in encodings:
+        try:
+            file.seek(0)
+            df = pd.read_csv(file, sep="|", encoding=enc, engine="python", on_bad_lines="skip")
+            df.columns = df.columns.str.strip()
+            return df
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err
 
 
 with st.sidebar:
