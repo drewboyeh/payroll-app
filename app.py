@@ -79,6 +79,19 @@ if run:
                 st.success("Analysis complete.")
                 with results_container:
                     st.dataframe(results)
+                    missing_names = results[['Employee_ID']].copy()
+                    if 'First_Name' in results.columns:
+                        missing_names['First_Name'] = results['First_Name']
+                    if 'Last_Name' in results.columns:
+                        missing_names['Last_Name'] = results['Last_Name']
+                    if 'First_Name' in missing_names.columns or 'Last_Name' in missing_names.columns:
+                        null_mask = (
+                            (missing_names['First_Name'].isna() if 'First_Name' in missing_names.columns else True) &
+                            (missing_names['Last_Name'].isna() if 'Last_Name' in missing_names.columns else True)
+                        )
+                        count_missing = int(null_mask.sum())
+                        if count_missing > 0:
+                            st.info(f"{count_missing} employees missing names; showing IDs only.")
 
                 # Build CSV into buffer using analyzer's save_report which supports file-like
                 csv_buf = io.StringIO()

@@ -169,10 +169,41 @@ class LocalPayrollAnalyzer:
         results['Hours_Proportion'] = results['Hours_Worked'] / results['Total_Store_Hours']
         results['Hours_Percentage'] = results['Hours_Proportion'] * 100
         
-        # Add employee names if available
+        # Add employee names if available (merge by Employee_ID only and normalize columns)
         if self.employee_data is not None:
-            employee_info = self.employee_data[['Employee_ID', 'First_Name', 'Last_Name', 'Store_ID']].copy()
-            results = results.merge(employee_info, on=['Employee_ID', 'Store_ID'], how='left')
+            emp = self.employee_data.copy()
+            emp.columns = emp.columns.str.strip()
+            # Try to find first/last name columns across common variants
+            def pick(colnames):
+                for name in colnames:
+                    if name in emp.columns:
+                        return name
+                # case-insensitive match
+                lower_map = {c.lower(): c for c in emp.columns}
+                for name in colnames:
+                    if name.lower() in lower_map:
+                        return lower_map[name.lower()]
+                return None
+
+            first_col = pick(['First_Name', 'First Name', 'First', 'FName'])
+            last_col = pick(['Last_Name', 'Last Name', 'Last', 'LName'])
+
+            cols = ['Employee_ID']
+            if first_col:
+                cols.append(first_col)
+            if last_col:
+                cols.append(last_col)
+
+            emp_small = emp[cols].copy()
+            if first_col and first_col != 'First_Name':
+                emp_small.rename(columns={first_col: 'First_Name'}, inplace=True)
+            if last_col and last_col != 'Last_Name':
+                emp_small.rename(columns={last_col: 'Last_Name'}, inplace=True)
+
+            # Deduplicate by Employee_ID, preferring non-null names
+            emp_small = emp_small.sort_values(['Employee_ID']).drop_duplicates('Employee_ID', keep='first')
+
+            results = results.merge(emp_small, on='Employee_ID', how='left')
         
         # Add store information if available
         if self.store_data is not None:
